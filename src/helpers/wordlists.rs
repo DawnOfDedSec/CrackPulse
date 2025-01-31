@@ -13,6 +13,7 @@ fn parse(content: String) -> Vec<String> {
         .collect()
 }
 
+#[tokio::main]
 async fn get(url: String) -> Option<Vec<String>> {
     match fetch(url).await {
         Ok(content) => Some(parse(content)),
@@ -23,33 +24,47 @@ async fn get(url: String) -> Option<Vec<String>> {
     }
 }
 
-#[tokio::main]
-pub async fn get_users() -> Vec<String> {
-    let urls = [
+pub fn get_users(_urls: Option<Vec<&str>>, strict: bool) -> Vec<String> {
+    let mut urls = Vec::from([
         "https://raw.githubusercontent.com/danielmiessler/SecLists/refs/heads/master/Usernames/top-usernames-shortlist.txt",
-    ];
+    ]);
 
     let mut lists = Vec::new();
 
+    if let Some(_urls) = _urls {
+        if strict {
+            urls.extend(_urls);
+        }
+    }
+
     for url in urls {
-        let lines = get(String::from(url)).await.unwrap();
-        lists.extend(lines);
+        let lines = get(String::from(url));
+        if let Some(lines) = lines {
+            lists.extend(lines);
+        }
     }
 
     return lists;
 }
 
-#[tokio::main]
-pub async fn get_passwords() -> Vec<String> {
-    let urls = [
+pub fn get_passwords(_urls: Option<Vec<&str>>, strict: bool) -> Vec<String> {
+    let mut urls = Vec::from([
         "https://raw.githubusercontent.com/danielmiessler/SecLists/refs/heads/master/Passwords/Common-Credentials/10k-most-common.txt",
-    ];
+    ]);
 
     let mut lists = Vec::new();
 
+    if let Some(_urls) = _urls {
+        if strict {
+            urls.extend(_urls);
+        }
+    }
+
     for url in urls {
-        let lines = get(String::from(url)).await.unwrap();
-        lists.extend(lines);
+        let lines = get(String::from(url));
+        if let Some(lines) = lines {
+            lists.extend(lines);
+        }
     }
 
     return lists;

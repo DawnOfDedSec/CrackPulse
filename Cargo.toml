@@ -9,3 +9,4 @@ reqwest = "0.12.12"
 ssh2 = "0.9.4"
 
 tokio = { version = "1.43.0", features = ["rt-multi-thread", "macros"] }
+winapi = { version = "0.3.9", features = ["winbase", "winnt"] }

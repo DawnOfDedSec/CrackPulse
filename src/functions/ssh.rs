@@ -14,7 +14,7 @@ pub struct SshCredentials {
 }
 
 // Main function to test credentials concurrently
-pub fn recon(
+pub fn attack(
     hostname: String,
     port: u16,
     timeout: Duration,

